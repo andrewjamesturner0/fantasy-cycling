@@ -1,0 +1,99 @@
+transfers_done: false
+
+first_half:
+  Nick:
+    - AYUSO Juan
+    - VINGEGAARD Jonas
+    - VINE Jay
+    - NARVÁEZ Jhonatan
+    - TARLING Joshua
+    - WILLIAMS Stephen
+    - FORTUNATO Lorenzo
+    - O'CONNOR Ben
+
+  Tim:
+    - PHILIPSEN Jasper
+    - KOOIJ Olav
+    - MERLIER Tim
+    - PEDERSEN Mads
+    - STRONG Corbin
+    - CHRISTEN Jan
+    - BLACKMORE Joseph
+    - HINDLEY Jai
+
+  Cameron:
+    - HEALY Ben
+    - JORGENSON Matteo
+    - PIDCOCK Thomas
+    - ONLEY Oscar
+    - ROGLIČ Primož
+    - ARENSMAN Thymen
+    - GANNA Filippo
+    - ALAPHILIPPE Julian
+
+  Andy:
+    - EVENEPOEL Remco
+    - BRENNAN Matthew
+    - MCNULTY Brandon
+    - ALMEIDA João
+    - GRÉGOIRE Romain
+    - MOSCHETTI Matteo
+    - YATES Adam
+    - UIJTDEBROEKS Cian
+
+  Dave:
+    - VAUQUELIN Kévin
+    - CICCONE Giulio
+    - GALL Felix
+    - DEL TORO Isaac
+    - MARTINEZ Lenny
+    - POWLESS Neilson
+    - GIRMAY Biniam
+    - JEANNIÈRE Emilien
+
+  Mike:
+    - DE LIE Arnaud
+    - SKJELMOSE Mattias
+    - MAGNIER Paul
+    - VAN DER POEL Mathieu
+    - CARAPAZ Richard
+    - NYS Thibau
+    - SEIXAS Paul
+    - GEE Derek
+
+  Campbell:
+    - VAN AERT Wout
+    - LIPOWITZ Florian
+    - MILAN Jonathan
+    - SCARONI Christian
+    - WRIGHT Fred
+    - PELLIZZARI Giulio
+    - STORER Michael
+    - DEL GROSSO Tibor
+
+  Joe:
+    - PIDCOCK Joseph
+    - CRAPS Lars
+    - JAKOBSEN Fabio
+    - SÖDERQVIST Jakob
+    - WIDAR Jarno
+    - HIRSCHI Marc
+    - WANG Gustav
+    - POGAČAR Tadej
+
+  Geminiani's Hipsters:
+    - BISIAUX Léo
+    - NORDHAGEN Jørgen
+    - LAMPERTI Luke
+    - AUGUST Andrew
+    - AGOSTINACCHIO Filippo
+    - FINN Lorenzo
+    - TULETT Ben
+    - ABRAHAMSEN Jonas
+
+# Populated when transfers happen. Can keep riders or swap them.
+# Set transfers_done to true and fill in rosters below.
+second_half: {}
+
+aliases:
+  GEE-WEST Derek: GEE Derek
