@@ -84,9 +84,12 @@ def parse_ranking_page(html: str) -> list[dict]:
             continue
         try:
             rank = int(tds[0].strip())
-            prev_rank = int(tds[1].strip())
         except ValueError:
             continue
+        try:
+            prev_rank = int(tds[1].strip())
+        except ValueError:
+            prev_rank = 0
         name_match = re.search(r'href="rider/[^"]+">([^<]+)</a>', tds[3])
         team_match = re.search(r'href="team/[^"]+">([^<]+)</a>', tds[4])
         points_match = re.search(r'>(\d+)</a>', tds[5])
