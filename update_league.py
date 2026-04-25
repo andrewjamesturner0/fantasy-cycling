@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import json
 import os
 import re
 from datetime import datetime, timezone
@@ -266,6 +267,7 @@ def generate_html(
     path: str,
     transfers_done: bool = False,
     snapshot: dict[str, int] | None = None,
+    history: list[dict] | None = None,
 ):
     """Generate a self-contained HTML league table."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -336,6 +338,13 @@ def generate_html(
       </details>
 """
 
+    # Build history JSON for embedding in HTML
+    history_json = json.dumps(history or [], ensure_ascii=False)
+
+    # Build manager list in standings order for consistent chart colours
+    manager_order = [e["manager"] for e in standings]
+    manager_order_json = json.dumps(manager_order, ensure_ascii=False)
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -345,6 +354,7 @@ def generate_html(
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root {{
     --bg: #ffffff;
@@ -509,6 +519,36 @@ def generate_html(
   .rider-table td.rider-rank {{ color: var(--text-secondary); font-variant-numeric: tabular-nums; }}
   .banked-row td {{ background: var(--surface); }}
 
+  /* --- Charts --- */
+  .charts-section {{
+    margin-top: 3rem;
+  }}
+  .chart-container {{
+    position: relative;
+    margin-bottom: 2.5rem;
+    padding: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }}
+  .chart-container h3 {{
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }}
+  .chart-container canvas {{
+    width: 100% !important;
+  }}
+  .chart-note {{
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 0.5rem;
+  }}
+
   /* --- Footer --- */
   .updated {{
     text-align: center;
@@ -547,8 +587,245 @@ def generate_html(
 
   <h2>Rider Breakdown</h2>
 {detail_sections}
+
+  <div class="charts-section">
+    <h2>Season Progress</h2>
+
+    <div class="chart-container">
+      <h3>Team Points Over Time</h3>
+      <canvas id="pointsOverTime"></canvas>
+      <p class="chart-note">Updated every Monday &amp; Thursday</p>
+    </div>
+
+    <div class="chart-container">
+      <h3>League Position Over Time</h3>
+      <canvas id="positionOverTime"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <h3>Points Gained Per Update</h3>
+      <canvas id="pointsGained"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <h3>Rider Contributions</h3>
+      <canvas id="riderContribution"></canvas>
+    </div>
+  </div>
+
   <p class="updated">Last updated: {now}</p>
 </div>
+
+<script>
+(function() {{
+  const history = {history_json};
+  const managers = {manager_order_json};
+
+  // Colour palette — distinct, accessible colours for up to 9 teams
+  const COLOURS = [
+    '#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
+    '#42d4f4', '#f032e6', '#bfef45', '#469990'
+  ];
+
+  const colourMap = {{}};
+  managers.forEach((m, i) => colourMap[m] = COLOURS[i % COLOURS.length]);
+
+  // --- Helpers ---
+  const dates = history.map(h => h.date);
+  const shortDates = dates.map(d => {{
+    const parts = d.split('-');
+    return parts[2] + '/' + parts[1];
+  }});
+
+  // Chart.js defaults
+  Chart.defaults.font.family = "'Hanken Grotesk', sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = '#6b6b6b';
+
+  // --- 1. Team Points Over Time (line chart) ---
+  if (history.length >= 1) {{
+    new Chart(document.getElementById('pointsOverTime'), {{
+      type: 'line',
+      data: {{
+        labels: shortDates,
+        datasets: managers.map(m => ({{
+          label: m,
+          data: history.map(h => h.teams[m] ? h.teams[m].total : null),
+          borderColor: colourMap[m],
+          backgroundColor: colourMap[m] + '18',
+          borderWidth: 2,
+          pointRadius: history.length > 20 ? 0 : 3,
+          pointHoverRadius: 5,
+          tension: 0.25,
+          fill: false,
+        }})),
+      }},
+      options: {{
+        responsive: true,
+        interaction: {{ mode: 'index', intersect: false }},
+        plugins: {{
+          legend: {{ position: 'bottom', labels: {{ boxWidth: 12, padding: 12 }} }},
+          tooltip: {{ callbacks: {{ label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y ?? 0).toLocaleString() + ' pts' }} }},
+        }},
+        scales: {{
+          y: {{ beginAtZero: true, grid: {{ color: '#e5e5e5' }}, ticks: {{ callback: v => v.toLocaleString() }} }},
+          x: {{ grid: {{ display: false }} }},
+        }},
+      }},
+    }});
+  }}
+
+  // --- 2. League Position Over Time (bump chart) ---
+  if (history.length >= 2) {{
+    new Chart(document.getElementById('positionOverTime'), {{
+      type: 'line',
+      data: {{
+        labels: shortDates,
+        datasets: managers.map(m => ({{
+          label: m,
+          data: history.map(h => h.teams[m] ? h.teams[m].rank : null),
+          borderColor: colourMap[m],
+          backgroundColor: colourMap[m],
+          borderWidth: 2.5,
+          pointRadius: history.length > 20 ? 0 : 4,
+          pointHoverRadius: 6,
+          tension: 0.25,
+          fill: false,
+        }})),
+      }},
+      options: {{
+        responsive: true,
+        interaction: {{ mode: 'index', intersect: false }},
+        plugins: {{
+          legend: {{ position: 'bottom', labels: {{ boxWidth: 12, padding: 12 }} }},
+          tooltip: {{ callbacks: {{ label: ctx => ctx.dataset.label + ': #' + ctx.parsed.y }} }},
+        }},
+        scales: {{
+          y: {{
+            reverse: true,
+            min: 1,
+            max: managers.length,
+            ticks: {{ stepSize: 1, callback: v => '#' + v }},
+            grid: {{ color: '#e5e5e5' }},
+          }},
+          x: {{ grid: {{ display: false }} }},
+        }},
+      }},
+    }});
+  }} else {{
+    document.getElementById('positionOverTime').parentElement.querySelector('h3').textContent += ' (needs 2+ updates)';
+  }}
+
+  // --- 3. Points Gained Per Update (grouped bar chart) ---
+  if (history.length >= 2) {{
+    const gainDates = shortDates.slice(1);
+    const gainDatasets = managers.map(m => ({{
+      label: m,
+      data: history.slice(1).map((h, i) => {{
+        const prev = history[i].teams[m] ? history[i].teams[m].total : 0;
+        const curr = h.teams[m] ? h.teams[m].total : 0;
+        return Math.max(0, curr - prev);
+      }}),
+      backgroundColor: colourMap[m] + 'cc',
+      borderColor: colourMap[m],
+      borderWidth: 1,
+    }}));
+
+    new Chart(document.getElementById('pointsGained'), {{
+      type: 'bar',
+      data: {{ labels: gainDates, datasets: gainDatasets }},
+      options: {{
+        responsive: true,
+        plugins: {{
+          legend: {{ position: 'bottom', labels: {{ boxWidth: 12, padding: 12 }} }},
+          tooltip: {{ callbacks: {{ label: ctx => ctx.dataset.label + ': +' + ctx.parsed.y.toLocaleString() }} }},
+        }},
+        scales: {{
+          y: {{ beginAtZero: true, grid: {{ color: '#e5e5e5' }}, ticks: {{ callback: v => '+' + v.toLocaleString() }} }},
+          x: {{ grid: {{ display: false }} }},
+        }},
+      }},
+    }});
+  }} else {{
+    document.getElementById('pointsGained').parentElement.querySelector('h3').textContent += ' (needs 2+ updates)';
+  }}
+
+  // --- 4. Rider Contribution (horizontal stacked bar) ---
+  const latestSnap = history.length > 0 ? history[history.length - 1] : null;
+  if (latestSnap) {{
+    // Build rider datasets — each unique rider becomes a segment
+    const riderMap = {{}};  // rider → array of values per manager
+    managers.forEach((m, mi) => {{
+      const riders = latestSnap.teams[m] ? latestSnap.teams[m].riders : [];
+      riders.sort((a, b) => b.points - a.points);
+      riders.forEach((r, ri) => {{
+        if (!riderMap[r.rider]) riderMap[r.rider] = new Array(managers.length).fill(0);
+        riderMap[r.rider][mi] = r.points;
+      }});
+    }});
+
+    // Generate colours for riders
+    const riderNames = Object.keys(riderMap);
+    const riderColours = [
+      '#264653', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51',
+      '#606c38', '#283618', '#dda15e', '#bc6c25', '#023047',
+      '#219ebc', '#8ecae6', '#ffb703', '#fb8500', '#457b9d',
+      '#1d3557', '#a8dadc', '#e63946', '#f1faee', '#6d6875',
+      '#b5838d', '#e5989b', '#ffcdb2', '#ffb4a2', '#6930c3',
+      '#5390d9', '#48bfe3', '#56cfe1', '#64dfdf', '#72efdd',
+      '#80ffdb', '#7400b8', '#5e60ce', '#4ea8de', '#06d6a0',
+      '#118ab2', '#073b4c', '#ef476f', '#ffd166', '#8338ec',
+      '#3a86ff', '#ff006e', '#8ac926', '#1982c4', '#6a4c93',
+      '#f72585', '#7209b7', '#3f37c9', '#4361ee', '#4cc9f0',
+      '#c9184a', '#ff4d6d', '#ff758f', '#ff8fa3', '#ffb3c1',
+      '#d9ed92', '#b5e48c', '#99d98c', '#76c893', '#52b69a',
+      '#34a0a4', '#168aad', '#1a759f', '#1e6091', '#184e77',
+      '#9b2226', '#ae2012', '#bb3e03', '#ca6702', '#ee9b00',
+      '#e9d8a6', '#94d2bd', '#0a9396', '#005f73', '#001219',
+    ];
+
+    const riderDatasets = riderNames.map((name, i) => ({{
+      label: name,
+      data: riderMap[name],
+      backgroundColor: riderColours[i % riderColours.length] + 'dd',
+      borderColor: '#ffffff',
+      borderWidth: 0.5,
+    }}));
+
+    new Chart(document.getElementById('riderContribution'), {{
+      type: 'bar',
+      data: {{ labels: managers, datasets: riderDatasets }},
+      options: {{
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {{
+          legend: {{ display: false }},
+          tooltip: {{
+            callbacks: {{
+              label: ctx => {{
+                if (ctx.parsed.x === 0) return null;
+                return ctx.dataset.label + ': ' + ctx.parsed.x.toLocaleString() + ' pts';
+              }},
+            }},
+          }},
+        }},
+        scales: {{
+          x: {{
+            stacked: true,
+            beginAtZero: true,
+            grid: {{ color: '#e5e5e5' }},
+            ticks: {{ callback: v => v.toLocaleString() }},
+          }},
+          y: {{
+            stacked: true,
+            grid: {{ display: false }},
+          }},
+        }},
+      }},
+    }});
+  }}
+}})();
+</script>
 </body>
 </html>"""
 
@@ -556,6 +833,68 @@ def generate_html(
     with open(path, "w") as f:
         f.write(html)
     print(f"Written: {path}")
+
+
+# ---------------------------------------------------------------------------
+# History tracking
+# ---------------------------------------------------------------------------
+
+def load_history(path: str) -> list[dict]:
+    """Load existing history from JSON file, or return empty list."""
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return []
+
+
+def append_history(
+    history: list[dict],
+    standings: list[dict],
+    active_teams: dict[str, list[str]],
+    ranking: dict[str, dict],
+    path: str,
+    transfers_done: bool = False,
+    snapshot: dict[str, int] | None = None,
+):
+    """Append a new snapshot to the history file.
+
+    Each entry records the date and each manager's total points plus
+    per-rider breakdown, giving us everything we need for charts.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Don't add a duplicate entry for the same date
+    if history and history[-1]["date"] == today:
+        history.pop()
+
+    teams_snapshot = {}
+    for entry in standings:
+        mgr = entry["manager"]
+        riders = []
+        for rider in active_teams[mgr]:
+            info = ranking.get(rider, {})
+            current = info.get("points", 0)
+            if transfers_done and snapshot is not None:
+                baseline = snapshot.get(rider, 0)
+                display_points = max(0, current - baseline)
+            else:
+                display_points = current
+            riders.append({"rider": rider, "points": display_points})
+        teams_snapshot[mgr] = {
+            "total": entry["points"],
+            "rank": entry["rank"],
+            "banked": entry["banked"],
+            "riders": riders,
+        }
+
+    history.append({
+        "date": today,
+        "teams": teams_snapshot,
+    })
+
+    with open(path, "w") as f:
+        json.dump(history, f, indent=2, ensure_ascii=False)
+    print(f"Written: {path} ({len(history)} snapshots)")
 
 
 def log_missing_riders(active_teams: dict[str, list[str]], ranking: dict[str, dict]):
@@ -585,6 +924,7 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(base_dir, "league_config.yaml")
     snapshot_path = os.path.join(base_dir, "mid_season_snapshot.csv")
+    history_path = os.path.join(base_dir, "history.json")
 
     # Load config
     config = load_config(config_path)
@@ -625,13 +965,20 @@ def main():
         active_teams, ranking, transfers_done, first_half_teams, snapshot
     )
 
-    # Step 6: Print summary
+    # Step 6: Update history
+    history = load_history(history_path)
+    append_history(
+        history, standings, active_teams, ranking, history_path,
+        transfers_done, snapshot,
+    )
+
+    # Step 7: Print summary
     print("\n=== League Standings ===")
     for entry in standings:
         banked_info = f" (banked: {entry['banked']:,})" if entry["banked"] > 0 else ""
         print(f"  {entry['rank']}. {entry['manager']}: {entry['points']:,} pts{banked_info}")
 
-    # Step 7: Write outputs
+    # Step 8: Write outputs
     write_league_csv(standings, os.path.join(base_dir, "league_table.csv"))
     write_detailed_csv(
         active_teams, ranking, os.path.join(base_dir, "league_detailed.csv"),
@@ -642,6 +989,7 @@ def main():
         standings, active_teams, ranking,
         os.path.join(base_dir, "docs", "index.html"),
         transfers_done, snapshot,
+        history=history,
     )
 
     print("\nDone!")
