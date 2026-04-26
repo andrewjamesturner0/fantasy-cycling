@@ -268,6 +268,7 @@ def generate_html(
     transfers_done: bool = False,
     snapshot: dict[str, int] | None = None,
     history: list[dict] | None = None,
+    auction_costs: dict[str, int] | None = None,
 ):
     """Generate a self-contained HTML league table."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -284,11 +285,18 @@ def generate_html(
                 display_points = max(0, current - baseline)
             else:
                 display_points = current
+            cost = (auction_costs or {}).get(rider)
+            if cost and cost > 0 and display_points > 0:
+                value = round(display_points / cost, 1)
+            else:
+                value = None
             details.append({
                 "rider": rider,
                 "points": display_points,
                 "rank": info.get("rank", "—"),
                 "team": info.get("team", ""),
+                "cost": cost,
+                "value": value,
             })
         details.sort(key=lambda x: x["points"], reverse=True)
         manager_details[manager] = details
@@ -309,33 +317,91 @@ def generate_html(
         mgr = entry["manager"]
         riders_html = ""
 
+        has_costs = auction_costs is not None
+
         # Show banked points row if transfers have happened
         if transfers_done and entry["banked"] > 0:
+            banked_extra = "<td></td>" if has_costs else ""
             riders_html += f"""            <tr class="banked-row">
               <td><em>1st Half (banked)</em></td>
               <td class="team"></td>
               <td class="points">{entry['banked']:,}</td>
+              {banked_extra}
               <td class="rider-rank"></td>
             </tr>
 """
 
         for r in manager_details[mgr]:
             rank_display = f"#{r['rank']}" if r["rank"] != "—" else "—"
+            if has_costs:
+                if r["cost"] is not None and r["cost"] > 0:
+                    cost_display = f"${r['cost']}"
+                    value_display = f"{r['value']:.1f}" if r["value"] else "—"
+                elif r["cost"] == 0:
+                    cost_display = "free"
+                    value_display = "—"
+                else:
+                    cost_display = "—"
+                    value_display = "—"
+                value_td = f'<td class="value">{value_display}</td>'
+            else:
+                value_td = ""
             riders_html += f"""            <tr>
               <td>{r['rider']}</td>
               <td class="team">{r['team']}</td>
               <td class="points">{r['points']:,}</td>
+              {value_td}
               <td class="rider-rank">{rank_display}</td>
             </tr>
 """
+        value_th = "<th>Pts/$</th>" if has_costs else ""
         detail_sections += f"""      <details class="manager-detail">
         <summary>{mgr} — {entry['points']:,} pts</summary>
         <table class="rider-table">
-          <thead><tr><th>Rider</th><th>Team</th><th>Points</th><th>PCS Rank</th></tr></thead>
+          <thead><tr><th>Rider</th><th>Team</th><th>Points</th>{value_th}<th>PCS Rank</th></tr></thead>
           <tbody>
 {riders_html}          </tbody>
         </table>
       </details>
+"""
+
+    # Build top 10 best value table (riders that cost > $0)
+    best_value_html = ""
+    if auction_costs:
+        all_riders_value = []
+        for mgr, details in manager_details.items():
+            for r in details:
+                if r["cost"] and r["cost"] > 0 and r["points"] > 0:
+                    all_riders_value.append({
+                        "rider": r["rider"],
+                        "manager": mgr,
+                        "points": r["points"],
+                        "cost": r["cost"],
+                        "value": r["value"],
+                    })
+        all_riders_value.sort(key=lambda x: x["value"], reverse=True)
+
+        value_rows = ""
+        for i, rv in enumerate(all_riders_value[:10], 1):
+            value_rows += f"""          <tr>
+            <td class="rank">{i}</td>
+            <td>{rv['rider']}</td>
+            <td class="team">{rv['manager']}</td>
+            <td class="points">{rv['points']:,}</td>
+            <td class="cost">${rv['cost']}</td>
+            <td class="value">{rv['value']:.1f}</td>
+          </tr>
+"""
+        best_value_html = f"""
+  <h2>Best Value Picks</h2>
+  <p class="value-note">Top 10 riders by points per dollar spent (excludes free picks)</p>
+  <table class="standings value-table">
+    <thead>
+      <tr><th>#</th><th>Rider</th><th>Manager</th><th>Points</th><th>Cost</th><th>Pts/$</th></tr>
+    </thead>
+    <tbody>
+{value_rows}    </tbody>
+  </table>
 """
 
     # Build history JSON for embedding in HTML
@@ -517,7 +583,16 @@ def generate_html(
   .rider-table td.points {{ font-weight: 600; font-variant-numeric: tabular-nums; }}
   .rider-table td.team {{ color: var(--text-secondary); font-size: 0.78rem; }}
   .rider-table td.rider-rank {{ color: var(--text-secondary); font-variant-numeric: tabular-nums; }}
+  .rider-table td.value {{ color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }}
   .banked-row td {{ background: var(--surface); }}
+  .value-note {{
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    margin-bottom: 0.75rem;
+    margin-top: -0.4rem;
+  }}
+  .value-table td.cost {{ font-variant-numeric: tabular-nums; }}
+  .value-table td.value {{ color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }}
 
   /* --- Charts --- */
   .charts-section {{
@@ -587,7 +662,7 @@ def generate_html(
 
   <h2>Rider Breakdown</h2>
 {detail_sections}
-
+{best_value_html}
   <div class="charts-section">
     <h2>Season Progress</h2>
 
@@ -933,6 +1008,7 @@ def main():
     first_half_teams = config["first_half"]
     active_teams = get_active_teams(config)
     rider_to_manager = build_rider_to_manager(active_teams)
+    auction_costs = config.get("auction_costs", {})
 
     # Step 1: Fetch rankings
     raw = fetch_rankings()
@@ -990,6 +1066,7 @@ def main():
         os.path.join(base_dir, "docs", "index.html"),
         transfers_done, snapshot,
         history=history,
+        auction_costs=auction_costs,
     )
 
     print("\nDone!")
