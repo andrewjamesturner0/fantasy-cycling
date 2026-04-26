@@ -460,3 +460,28 @@ class TestHotRiders:
         assert "+(-50)" not in html
         # Positive gains for A and B and C are present
         assert "+300" in html
+
+
+# ---------------------------------------------------------------------------
+# Banked-segment in Rider Contributions chart
+# ---------------------------------------------------------------------------
+
+class TestBankedSegment:
+    def test_banked_segment_rendered_when_banked_nonzero(self, tmp_path):
+        snap = _snapshot_entry("2026-04-25", {
+            "Alice": [("RIDER A", 200), ("RIDER B", 150)],
+            "Bob":   [("RIDER C", 100), ("RIDER D",  50)],
+        })
+        snap["teams"]["Alice"]["banked"] = 600
+        snap["teams"]["Alice"]["total"] = 600 + 350
+        html = _html(tmp_path, history=[snap])
+        assert "Banked (1st half)" in html
+        assert '"banked": 600' in html
+
+    def test_banked_segment_suppressed_when_all_zero(self, tmp_path):
+        snap = _snapshot_entry("2026-04-25", {
+            "Alice": [("RIDER A", 500), ("RIDER B", 300)],
+            "Bob":   [("RIDER C", 200), ("RIDER D", 100)],
+        })
+        html = _html(tmp_path, history=[snap])
+        assert "Banked (1st half)" not in html
