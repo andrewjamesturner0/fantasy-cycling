@@ -636,12 +636,38 @@ def generate_html(
     letter-spacing: 0.01em;
   }}
 
+  /* --- Chart zoom toggle --- */
+  .chart-zoom {{
+    display: none;
+    text-align: right;
+    margin-bottom: 0.5rem;
+  }}
+  .chart-zoom button {{
+    font-family: inherit;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin-left: 0.3rem;
+  }}
+  .chart-zoom button.active {{
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }}
+
   /* --- Responsive --- */
   @media (max-width: 600px) {{
     body {{ padding: 1.5rem 0.75rem; }}
     h1 {{ font-size: 1.5rem; }}
     table.standings td, table.standings th {{ padding: 0.5rem 0.5rem; font-size: 0.82rem; }}
     .rider-table td, .rider-table th {{ padding: 0.3rem 0.5rem; }}
+    .chart-container canvas {{ height: 280px !important; }}
+    .chart-zoom {{ display: block; }}
   }}
 </style>
 </head>
@@ -667,11 +693,19 @@ def generate_html(
 
     <div class="chart-container">
       <h3>Team Points Over Time</h3>
+      <div class="chart-zoom" id="zoomPoints">
+        <button data-range="month" class="active">Last month</button>
+        <button data-range="all">Full season</button>
+      </div>
       <canvas id="pointsOverTime"></canvas>
     </div>
 
     <div class="chart-container">
       <h3>League Position Over Time</h3>
+      <div class="chart-zoom" id="zoomPosition">
+        <button data-range="month" class="active">Last month</button>
+        <button data-range="all">Full season</button>
+      </div>
       <canvas id="positionOverTime"></canvas>
     </div>
 
@@ -704,11 +738,53 @@ def generate_html(
   managers.forEach((m, i) => colourMap[m] = COLOURS[i % COLOURS.length]);
 
   // --- Helpers ---
+  const isMobile = window.innerWidth <= 600;
+  const lineWidth = isMobile ? 1.5 : 2;
+  const lineWidthBump = isMobile ? 1.5 : 2.5;
+  const ptRadius = isMobile ? 0 : (history.length > 20 ? 0 : 3);
+  const ptRadiusBump = isMobile ? 0 : (history.length > 20 ? 0 : 4);
+
   const dates = history.map(h => h.date);
   const shortDates = dates.map(d => {{
     const parts = d.split('-');
     return parts[2] + '/' + parts[1];
   }});
+
+  // Zoom: find index for ~1 month ago
+  const lastMonthIdx = Math.max(0, dates.length - 5);  // ~4-5 weekly entries = 1 month
+
+  function setupZoom(containerId, chart, allLabels, allDatasets) {{
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const buttons = container.querySelectorAll('button');
+    // Default to last month on mobile
+    if (isMobile && dates.length > 5) {{
+      applyZoom(chart, allLabels, allDatasets, lastMonthIdx);
+    }}
+    buttons.forEach(btn => {{
+      btn.addEventListener('click', function() {{
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const range = btn.dataset.range;
+        if (range === 'month') {{
+          applyZoom(chart, allLabels, allDatasets, lastMonthIdx);
+        }} else {{
+          applyZoom(chart, allLabels, allDatasets, 0);
+        }}
+      }});
+    }});
+  }}
+
+  function applyZoom(chart, allLabels, allDatasets, startIdx) {{
+    chart.data.labels = allLabels.slice(startIdx);
+    chart.data.datasets.forEach((ds, i) => {{
+      ds.data = allDatasets[i].slice(startIdx);
+    }});
+    // Update stored originals for hover highlight
+    chart._origColours = chart.data.datasets.map(d => d.borderColor);
+    chart._origWidths = chart.data.datasets.map(d => d.borderWidth);
+    chart.update();
+  }}
 
   // Chart.js defaults
   Chart.defaults.font.family = "'Hanken Grotesk', sans-serif";
@@ -747,17 +823,18 @@ def generate_html(
 
   // --- 1. Team Points Over Time (line chart) ---
   if (history.length >= 1) {{
+    const allPointsData = managers.map(m => history.map(h => h.teams[m] ? h.teams[m].total : null));
     const c1 = new Chart(document.getElementById('pointsOverTime'), {{
       type: 'line',
       data: {{
-        labels: shortDates,
-        datasets: managers.map(m => ({{
+        labels: shortDates.slice(),
+        datasets: managers.map((m, i) => ({{
           label: m,
-          data: history.map(h => h.teams[m] ? h.teams[m].total : null),
+          data: allPointsData[i].slice(),
           borderColor: colourMap[m],
           backgroundColor: colourMap[m] + '18',
-          borderWidth: 2,
-          pointRadius: history.length > 20 ? 0 : 3,
+          borderWidth: lineWidth,
+          pointRadius: ptRadius,
           pointHoverRadius: 5,
           tension: 0.25,
           fill: false,
@@ -765,8 +842,9 @@ def generate_html(
       }},
       options: lineHighlightOpts({{
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {{
-          legend: {{ position: 'bottom', labels: {{ boxWidth: 12, padding: 12 }} }},
+          legend: {{ position: 'bottom', labels: {{ boxWidth: 10, padding: 8, font: {{ size: isMobile ? 9 : 11 }} }} }},
           tooltip: {{ mode: 'index', intersect: false, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y ?? 0).toLocaleString() + ' pts' }} }},
         }},
         scales: {{
@@ -776,21 +854,23 @@ def generate_html(
       }}),
     }});
     storeOriginals(c1);
+    setupZoom('zoomPoints', c1, shortDates.slice(), allPointsData);
   }}
 
   // --- 2. League Position Over Time (bump chart) ---
   if (history.length >= 2) {{
+    const allPosData = managers.map(m => history.map(h => h.teams[m] ? h.teams[m].rank : null));
     const c2 = new Chart(document.getElementById('positionOverTime'), {{
       type: 'line',
       data: {{
-        labels: shortDates,
-        datasets: managers.map(m => ({{
+        labels: shortDates.slice(),
+        datasets: managers.map((m, i) => ({{
           label: m,
-          data: history.map(h => h.teams[m] ? h.teams[m].rank : null),
+          data: allPosData[i].slice(),
           borderColor: colourMap[m],
           backgroundColor: colourMap[m],
-          borderWidth: 2.5,
-          pointRadius: history.length > 20 ? 0 : 4,
+          borderWidth: lineWidthBump,
+          pointRadius: ptRadiusBump,
           pointHoverRadius: 6,
           tension: 0.25,
           fill: false,
@@ -798,8 +878,9 @@ def generate_html(
       }},
       options: lineHighlightOpts({{
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {{
-          legend: {{ position: 'bottom', labels: {{ boxWidth: 12, padding: 12 }} }},
+          legend: {{ position: 'bottom', labels: {{ boxWidth: 10, padding: 8, font: {{ size: isMobile ? 9 : 11 }} }} }},
           tooltip: {{ mode: 'index', intersect: false, callbacks: {{ label: ctx => ctx.dataset.label + ': #' + ctx.parsed.y }} }},
         }},
         scales: {{
@@ -815,6 +896,7 @@ def generate_html(
       }}),
     }});
     storeOriginals(c2);
+    setupZoom('zoomPosition', c2, shortDates.slice(), allPosData);
   }} else {{
     document.getElementById('positionOverTime').parentElement.querySelector('h3').textContent += ' (needs 2+ updates)';
   }}
@@ -895,12 +977,23 @@ def generate_html(
       borderWidth: 0.5,
     }}));
 
+    // Wrap long manager names into multi-line labels for Chart.js
+    const wrappedLabels = managers.map(name => {{
+      if (name.length > 12) {{
+        const words = name.split(' ');
+        const mid = Math.ceil(words.length / 2);
+        return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+      }}
+      return name;
+    }});
+
     new Chart(document.getElementById('riderContribution'), {{
       type: 'bar',
-      data: {{ labels: managers, datasets: riderDatasets }},
+      data: {{ labels: wrappedLabels, datasets: riderDatasets }},
       options: {{
         indexAxis: 'y',
         responsive: true,
+        maintainAspectRatio: !isMobile,
         plugins: {{
           legend: {{ display: false }},
           tooltip: {{
@@ -922,6 +1015,10 @@ def generate_html(
           y: {{
             stacked: true,
             grid: {{ display: false }},
+            ticks: {{
+              autoSkip: false,
+              font: {{ size: isMobile ? 9 : 11 }},
+            }},
           }},
         }},
       }},

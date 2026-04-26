@@ -81,7 +81,7 @@ first_half:
     - WANG Gustav
     - POGAČAR Tadej
 
-  Geminiani's Hipsters:
+  Gemini's Hipsters:
     - BISIAUX Léo
     - NORDHAGEN Jørgen
     - LAMPERTI Luke
@@ -100,7 +100,7 @@ aliases:
   PIDCOCK Tom: PIDCOCK Thomas
 
 # Auction costs from the draft ($1000 budget per auctioning team).
-# Joe and Geminiani's Hipsters joined after the auction (free picks).
+# Joe and Gemini's Hipsters joined after the auction (free picks).
 auction_costs:
   AYUSO Juan: 280
   VINGEGAARD Jonas: 600

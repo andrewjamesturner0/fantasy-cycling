@@ -32,7 +32,7 @@ auction_costs:
   # ...
 ```
 
-The `auction_costs` section records what each manager paid for their riders at the draft. Riders picked for free (Joe and Geminiani's Hipsters joined after the auction) are omitted.
+The `auction_costs` section records what each manager paid for their riders at the draft. Riders picked for free (Joe and Gemini's Hipsters joined after the auction) are omitted.
 
 ## Points Calculation
 
