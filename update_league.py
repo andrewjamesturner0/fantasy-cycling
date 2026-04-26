@@ -666,7 +666,7 @@ def generate_html(
     h1 {{ font-size: 1.5rem; }}
     table.standings td, table.standings th {{ padding: 0.5rem 0.5rem; font-size: 0.82rem; }}
     .rider-table td, .rider-table th {{ padding: 0.3rem 0.5rem; }}
-    .chart-container canvas {{ height: 280px !important; }}
+    .chart-container canvas {{ max-height: 350px; }}
     .chart-zoom {{ display: block; }}
   }}
 </style>
@@ -749,17 +749,27 @@ def generate_html(
     const parts = d.split('-');
     return parts[2] + '/' + parts[1];
   }});
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Month labels: show month name on first occurrence, blank otherwise
+  const monthLabels = dates.map((d, i) => {{
+    const month = parseInt(d.split('-')[1], 10);
+    const prevMonth = i > 0 ? parseInt(dates[i-1].split('-')[1], 10) : -1;
+    return month !== prevMonth ? MONTHS[month - 1] : '';
+  }});
 
   // Zoom: find index for ~1 month ago
   const lastMonthIdx = Math.max(0, dates.length - 5);  // ~4-5 weekly entries = 1 month
 
-  function setupZoom(containerId, chart, allLabels, allDatasets) {{
+  function setupZoom(containerId, chart, allDateLabels, allMonthLabels, allDatasets) {{
     const container = document.getElementById(containerId);
     if (!container) return;
     const buttons = container.querySelectorAll('button');
     // Default to last month on mobile
     if (isMobile && dates.length > 5) {{
-      applyZoom(chart, allLabels, allDatasets, lastMonthIdx);
+      applyZoom(chart, allDateLabels, allDatasets, lastMonthIdx);
+    }} else {{
+      // Desktop: show full season with month labels
+      applyZoom(chart, allMonthLabels, allDatasets, 0);
     }}
     buttons.forEach(btn => {{
       btn.addEventListener('click', function() {{
@@ -767,16 +777,16 @@ def generate_html(
         btn.classList.add('active');
         const range = btn.dataset.range;
         if (range === 'month') {{
-          applyZoom(chart, allLabels, allDatasets, lastMonthIdx);
+          applyZoom(chart, allDateLabels, allDatasets, lastMonthIdx);
         }} else {{
-          applyZoom(chart, allLabels, allDatasets, 0);
+          applyZoom(chart, allMonthLabels, allDatasets, 0);
         }}
       }});
     }});
   }}
 
-  function applyZoom(chart, allLabels, allDatasets, startIdx) {{
-    chart.data.labels = allLabels.slice(startIdx);
+  function applyZoom(chart, labels, allDatasets, startIdx) {{
+    chart.data.labels = labels.slice(startIdx);
     chart.data.datasets.forEach((ds, i) => {{
       ds.data = allDatasets[i].slice(startIdx);
     }});
@@ -827,7 +837,7 @@ def generate_html(
     const c1 = new Chart(document.getElementById('pointsOverTime'), {{
       type: 'line',
       data: {{
-        labels: shortDates.slice(),
+        labels: monthLabels.slice(),
         datasets: managers.map((m, i) => ({{
           label: m,
           data: allPointsData[i].slice(),
@@ -842,7 +852,7 @@ def generate_html(
       }},
       options: lineHighlightOpts({{
         responsive: true,
-        maintainAspectRatio: !isMobile,
+        aspectRatio: isMobile ? 1.2 : 2,
         plugins: {{
           legend: {{ position: 'bottom', labels: {{ boxWidth: 10, padding: 8, font: {{ size: isMobile ? 9 : 11 }} }} }},
           tooltip: {{ mode: 'index', intersect: false, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y ?? 0).toLocaleString() + ' pts' }} }},
@@ -854,7 +864,7 @@ def generate_html(
       }}),
     }});
     storeOriginals(c1);
-    setupZoom('zoomPoints', c1, shortDates.slice(), allPointsData);
+    setupZoom('zoomPoints', c1, shortDates.slice(), monthLabels.slice(), allPointsData);
   }}
 
   // --- 2. League Position Over Time (bump chart) ---
@@ -863,7 +873,7 @@ def generate_html(
     const c2 = new Chart(document.getElementById('positionOverTime'), {{
       type: 'line',
       data: {{
-        labels: shortDates.slice(),
+        labels: monthLabels.slice(),
         datasets: managers.map((m, i) => ({{
           label: m,
           data: allPosData[i].slice(),
@@ -878,7 +888,7 @@ def generate_html(
       }},
       options: lineHighlightOpts({{
         responsive: true,
-        maintainAspectRatio: !isMobile,
+        aspectRatio: isMobile ? 1.2 : 2,
         plugins: {{
           legend: {{ position: 'bottom', labels: {{ boxWidth: 10, padding: 8, font: {{ size: isMobile ? 9 : 11 }} }} }},
           tooltip: {{ mode: 'index', intersect: false, callbacks: {{ label: ctx => ctx.dataset.label + ': #' + ctx.parsed.y }} }},
@@ -896,14 +906,14 @@ def generate_html(
       }}),
     }});
     storeOriginals(c2);
-    setupZoom('zoomPosition', c2, shortDates.slice(), allPosData);
+    setupZoom('zoomPosition', c2, shortDates.slice(), monthLabels.slice(), allPosData);
   }} else {{
     document.getElementById('positionOverTime').parentElement.querySelector('h3').textContent += ' (needs 2+ updates)';
   }}
 
   // --- 3. Points Gained Per Update (grouped bar chart) ---
   if (history.length >= 2) {{
-    const gainDates = shortDates.slice(1);
+    const gainMonthLabels = monthLabels.slice(1);
     const gainDatasets = managers.map(m => ({{
       label: m,
       data: history.slice(1).map((h, i) => {{
@@ -918,7 +928,7 @@ def generate_html(
 
     new Chart(document.getElementById('pointsGained'), {{
       type: 'bar',
-      data: {{ labels: gainDates, datasets: gainDatasets }},
+      data: {{ labels: gainMonthLabels, datasets: gainDatasets }},
       options: {{
         responsive: true,
         plugins: {{
@@ -993,7 +1003,7 @@ def generate_html(
       options: {{
         indexAxis: 'y',
         responsive: true,
-        maintainAspectRatio: !isMobile,
+        aspectRatio: isMobile ? 0.9 : 1.5,
         plugins: {{
           legend: {{ display: false }},
           tooltip: {{
