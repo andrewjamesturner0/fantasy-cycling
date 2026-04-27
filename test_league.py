@@ -14,8 +14,42 @@ from update_league import (
     get_active_teams,
     load_config,
     load_snapshot,
+    name_to_slug,
+    rider_link,
     write_snapshot,
 )
+
+
+class TestNameToSlug:
+    def test_simple_name(self):
+        assert name_to_slug("EVENEPOEL Remco") == "remco-evenepoel"
+
+    def test_multipart_surname(self):
+        assert name_to_slug("VAN AERT Wout") == "wout-van-aert"
+        assert name_to_slug("VAN DER POEL Mathieu") == "mathieu-van-der-poel"
+
+    def test_override_takes_precedence(self):
+        assert name_to_slug("PIDCOCK Thomas") == "tom-pidcock"
+        assert name_to_slug("AYUSO Juan") == "juan-ayuso-pesquera"
+
+    def test_override_with_apostrophe(self):
+        # Curly apostrophe should normalise to the override key form
+        assert name_to_slug("O’CONNOR Ben") == "ben-o-connor"
+        assert name_to_slug("O'CONNOR Ben") == "ben-o-connor"
+
+    def test_accented_characters(self):
+        assert name_to_slug("POGACAR Tadej") == "tadej-pogacar"
+
+    def test_nordic_characters(self):
+        assert name_to_slug("FØGLANG Eirik") == "eirik-foglang"
+
+
+class TestRiderLink:
+    def test_link_contains_slug_and_escaped_name(self):
+        link = rider_link("O'CONNOR Ben")
+        assert 'href="https://www.procyclingstats.com/rider/ben-o-connor"' in link
+        # Apostrophe should be HTML-escaped in display text
+        assert "&#x27;" in link or "&apos;" in link or "&#39;" in link
 
 
 # ---------------------------------------------------------------------------

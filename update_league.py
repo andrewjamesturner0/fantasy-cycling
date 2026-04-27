@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import html
 import json
 import os
 import re
@@ -26,16 +27,16 @@ SLUG_OVERRIDES = {
 CHAR_MAP = {
     "ø": "o", "Ø": "O", "æ": "ae", "Æ": "AE",
     "ð": "d", "Ð": "D", "ł": "l", "Ł": "L",
-    "ß": "ss", "þ": "th", "Þ": "Th", "’": "", "'": "",
+    "ß": "ss", "þ": "th", "Þ": "Th", "’": "'",
 }
 
 
 def name_to_slug(name: str) -> str:
     """Convert 'EVENEPOEL Remco' to 'remco-evenepoel' for PCS URLs."""
-    if name in SLUG_OVERRIDES:
-        return SLUG_OVERRIDES[name]
     for char, replacement in CHAR_MAP.items():
         name = name.replace(char, replacement)
+    if name in SLUG_OVERRIDES:
+        return SLUG_OVERRIDES[name]
     normalized = unicodedata.normalize("NFD", name)
     ascii_name = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
     parts = ascii_name.strip().split()
@@ -61,7 +62,10 @@ def name_to_slug(name: str) -> str:
 def rider_link(name: str) -> str:
     """Return an HTML link to a rider's PCS page."""
     slug = name_to_slug(name)
-    return f'<a href="{BASE_URL}/rider/{slug}" target="_blank" rel="noopener">{name}</a>'
+    return (
+        f'<a class="rider-link" href="{BASE_URL}/rider/{slug}" '
+        f'target="_blank" rel="noopener">{html.escape(name)}</a>'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -734,8 +738,8 @@ def generate_html(
   .value-table td.value {{ color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }}
 
   /* --- Rider links --- */
-  td a {{ color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }}
-  td a:hover {{ color: var(--accent); border-bottom-color: var(--accent); }}
+  .rider-link {{ color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }}
+  .rider-link:hover {{ color: var(--accent); border-bottom-color: var(--accent); }}
 
   /* --- Charts --- */
   .charts-section {{
