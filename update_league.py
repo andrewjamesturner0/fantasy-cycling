@@ -6,12 +6,62 @@ import csv
 import json
 import os
 import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 import cloudscraper
 import yaml
 
 BASE_URL = "https://www.procyclingstats.com"
+
+# Riders whose PCS URL slug doesn't match the auto-generated one
+SLUG_OVERRIDES = {
+    "PIDCOCK Thomas": "tom-pidcock",
+    "AYUSO Juan": "juan-ayuso-pesquera",
+    "SKJELMOSE Mattias": "mattias-skjelmose-jensen",
+    "O'CONNOR Ben": "ben-o-connor",
+    "WRIGHT Fred": "alfred-wright",
+}
+
+CHAR_MAP = {
+    "ø": "o", "Ø": "O", "æ": "ae", "Æ": "AE",
+    "ð": "d", "Ð": "D", "ł": "l", "Ł": "L",
+    "ß": "ss", "þ": "th", "Þ": "Th", "’": "", "'": "",
+}
+
+
+def name_to_slug(name: str) -> str:
+    """Convert 'EVENEPOEL Remco' to 'remco-evenepoel' for PCS URLs."""
+    if name in SLUG_OVERRIDES:
+        return SLUG_OVERRIDES[name]
+    for char, replacement in CHAR_MAP.items():
+        name = name.replace(char, replacement)
+    normalized = unicodedata.normalize("NFD", name)
+    ascii_name = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+    parts = ascii_name.strip().split()
+    if len(parts) < 2:
+        return ascii_name.lower().replace(" ", "-")
+    surname_parts = []
+    first_parts = []
+    hit_lowercase = False
+    for p in parts:
+        if not hit_lowercase and p == p.upper() and p.isalpha():
+            surname_parts.append(p)
+        else:
+            hit_lowercase = True
+            first_parts.append(p)
+    if not first_parts:
+        first_parts = [surname_parts.pop()]
+    slug = "-".join(first_parts + surname_parts).lower()
+    slug = re.sub(r"[^a-z0-9-]", "", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def rider_link(name: str) -> str:
+    """Return an HTML link to a rider's PCS page."""
+    slug = name_to_slug(name)
+    return f'<a href="{BASE_URL}/rider/{slug}" target="_blank" rel="noopener">{name}</a>'
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +397,7 @@ def generate_html(
             else:
                 value_td = ""
             riders_html += f"""            <tr>
-              <td>{r['rider']}</td>
+              <td>{rider_link(r['rider'])}</td>
               <td class="team">{r['team']}</td>
               <td class="points">{r['points']:,}</td>
               {value_td}
@@ -411,7 +461,7 @@ def generate_html(
         for i, g in enumerate(gains[:10], 1):
             hot_rows += f"""          <tr>
             <td class="rank">{i}</td>
-            <td>{g['rider']}</td>
+            <td>{rider_link(g['rider'])}</td>
             <td class="team">{g['manager']}</td>
             <td class="points">+{g['gained']:,}</td>
             <td class="points">{g['total']:,}</td>
@@ -454,7 +504,7 @@ def generate_html(
         for i, rv in enumerate(all_riders_value[:10], 1):
             value_rows += f"""          <tr>
             <td class="rank">{i}</td>
-            <td>{rv['rider']}</td>
+            <td>{rider_link(rv['rider'])}</td>
             <td class="team">{rv['manager']}</td>
             <td class="points">{rv['points']:,}</td>
             <td class="cost">${rv['cost']}</td>
@@ -682,6 +732,10 @@ def generate_html(
   }}
   .value-table td.cost {{ font-variant-numeric: tabular-nums; }}
   .value-table td.value {{ color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }}
+
+  /* --- Rider links --- */
+  td a {{ color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }}
+  td a:hover {{ color: var(--accent); border-bottom-color: var(--accent); }}
 
   /* --- Charts --- */
   .charts-section {{
