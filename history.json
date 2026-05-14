@@ -7474,5 +7474,361 @@
         ]
       }
     }
+  },
+  {
+    "date": "2026-05-14",
+    "teams": {
+      "Campbell": {
+        "total": 3799,
+        "rank": 1,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "VAN AERT Wout",
+            "points": 759
+          },
+          {
+            "rider": "LIPOWITZ Florian",
+            "points": 792
+          },
+          {
+            "rider": "MILAN Jonathan",
+            "points": 387
+          },
+          {
+            "rider": "SCARONI Christian",
+            "points": 732
+          },
+          {
+            "rider": "WRIGHT Fred",
+            "points": 75
+          },
+          {
+            "rider": "PELLIZZARI Giulio",
+            "points": 618
+          },
+          {
+            "rider": "STORER Michael",
+            "points": 212
+          },
+          {
+            "rider": "DEL GROSSO Tibor",
+            "points": 224
+          }
+        ]
+      },
+      "Mike": {
+        "total": 3561,
+        "rank": 2,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "DE LIE Arnaud",
+            "points": 252
+          },
+          {
+            "rider": "SKJELMOSE Mattias",
+            "points": 485
+          },
+          {
+            "rider": "MAGNIER Paul",
+            "points": 362
+          },
+          {
+            "rider": "VAN DER POEL Mathieu",
+            "points": 950
+          },
+          {
+            "rider": "CARAPAZ Richard",
+            "points": 110
+          },
+          {
+            "rider": "NYS Thibau",
+            "points": 0
+          },
+          {
+            "rider": "SEIXAS Paul",
+            "points": 1262
+          },
+          {
+            "rider": "GEE Derek",
+            "points": 140
+          }
+        ]
+      },
+      "Andy": {
+        "total": 3474,
+        "rank": 3,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "EVENEPOEL Remco",
+            "points": 1230
+          },
+          {
+            "rider": "BRENNAN Matthew",
+            "points": 395
+          },
+          {
+            "rider": "MCNULTY Brandon",
+            "points": 149
+          },
+          {
+            "rider": "ALMEIDA João",
+            "points": 242
+          },
+          {
+            "rider": "GRÉGOIRE Romain",
+            "points": 705
+          },
+          {
+            "rider": "MOSCHETTI Matteo",
+            "points": 136
+          },
+          {
+            "rider": "YATES Adam",
+            "points": 390
+          },
+          {
+            "rider": "UIJTDEBROEKS Cian",
+            "points": 227
+          }
+        ]
+      },
+      "Dave": {
+        "total": 3148,
+        "rank": 4,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "VAUQUELIN Kévin",
+            "points": 415
+          },
+          {
+            "rider": "CICCONE Giulio",
+            "points": 234
+          },
+          {
+            "rider": "GALL Felix",
+            "points": 292
+          },
+          {
+            "rider": "DEL TORO Isaac",
+            "points": 857
+          },
+          {
+            "rider": "MARTINEZ Lenny",
+            "points": 817
+          },
+          {
+            "rider": "POWLESS Neilson",
+            "points": 0
+          },
+          {
+            "rider": "GIRMAY Biniam",
+            "points": 323
+          },
+          {
+            "rider": "JEANNIÈRE Emilien",
+            "points": 210
+          }
+        ]
+      },
+      "Cameron": {
+        "total": 2482,
+        "rank": 5,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "HEALY Ben",
+            "points": 146
+          },
+          {
+            "rider": "JORGENSON Matteo",
+            "points": 416
+          },
+          {
+            "rider": "PIDCOCK Thomas",
+            "points": 821
+          },
+          {
+            "rider": "ONLEY Oscar",
+            "points": 182
+          },
+          {
+            "rider": "ROGLIČ Primož",
+            "points": 311
+          },
+          {
+            "rider": "ARENSMAN Thymen",
+            "points": 238
+          },
+          {
+            "rider": "GANNA Filippo",
+            "points": 339
+          },
+          {
+            "rider": "ALAPHILIPPE Julian",
+            "points": 29
+          }
+        ]
+      },
+      "Tim": {
+        "total": 2068,
+        "rank": 6,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "PHILIPSEN Jasper",
+            "points": 623
+          },
+          {
+            "rider": "KOOIJ Olav",
+            "points": 0
+          },
+          {
+            "rider": "MERLIER Tim",
+            "points": 237
+          },
+          {
+            "rider": "PEDERSEN Mads",
+            "points": 388
+          },
+          {
+            "rider": "STRONG Corbin",
+            "points": 247
+          },
+          {
+            "rider": "CHRISTEN Jan",
+            "points": 484
+          },
+          {
+            "rider": "BLACKMORE Joseph",
+            "points": 0
+          },
+          {
+            "rider": "HINDLEY Jai",
+            "points": 89
+          }
+        ]
+      },
+      "Joe": {
+        "total": 1963,
+        "rank": 7,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "PIDCOCK Joseph",
+            "points": 0
+          },
+          {
+            "rider": "CRAPS Lars",
+            "points": 0
+          },
+          {
+            "rider": "JAKOBSEN Fabio",
+            "points": 5
+          },
+          {
+            "rider": "SÖDERQVIST Jakob",
+            "points": 81
+          },
+          {
+            "rider": "WIDAR Jarno",
+            "points": 58
+          },
+          {
+            "rider": "HIRSCHI Marc",
+            "points": 66
+          },
+          {
+            "rider": "WANG Gustav",
+            "points": 33
+          },
+          {
+            "rider": "POGAČAR Tadej",
+            "points": 1720
+          }
+        ]
+      },
+      "Nick": {
+        "total": 1895,
+        "rank": 8,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "AYUSO Juan",
+            "points": 232
+          },
+          {
+            "rider": "VINGEGAARD Jonas",
+            "points": 738
+          },
+          {
+            "rider": "VINE Jay",
+            "points": 328
+          },
+          {
+            "rider": "NARVÁEZ Jhonatan",
+            "points": 110
+          },
+          {
+            "rider": "TARLING Joshua",
+            "points": 90
+          },
+          {
+            "rider": "WILLIAMS Stephen",
+            "points": 0
+          },
+          {
+            "rider": "FORTUNATO Lorenzo",
+            "points": 199
+          },
+          {
+            "rider": "O'CONNOR Ben",
+            "points": 198
+          }
+        ]
+      },
+      "Gemini's Hipsters": {
+        "total": 1409,
+        "rank": 9,
+        "banked": 0,
+        "riders": [
+          {
+            "rider": "BISIAUX Léo",
+            "points": 164
+          },
+          {
+            "rider": "NORDHAGEN Jørgen",
+            "points": 375
+          },
+          {
+            "rider": "LAMPERTI Luke",
+            "points": 251
+          },
+          {
+            "rider": "AUGUST Andrew",
+            "points": 141
+          },
+          {
+            "rider": "AGOSTINACCHIO Filippo",
+            "points": 0
+          },
+          {
+            "rider": "FINN Lorenzo",
+            "points": 0
+          },
+          {
+            "rider": "TULETT Ben",
+            "points": 289
+          },
+          {
+            "rider": "ABRAHAMSEN Jonas",
+            "points": 189
+          }
+        ]
+      }
+    }
   }
 ]
