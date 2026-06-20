@@ -1,9 +1,11 @@
 name: Update League Table
 
 on:
-  schedule:
-    - cron: '0 8 * * 1,4'  # Every Monday and Thursday at 8am UTC
-  workflow_dispatch:       # Manual trigger
+  # Disabled — GitHub Actions datacenter IPs are blocked by PCS Cloudflare.
+  # Use run_update.sh locally instead (cron: Mon/Thu 8am UTC).
+  # schedule:
+  #   - cron: '0 8 * * 1,4'
+  workflow_dispatch:       # Manual trigger (kept for emergency use)
 
 permissions:
   contents: write
