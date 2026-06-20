@@ -7,10 +7,11 @@ import html
 import json
 import os
 import re
+import sys
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
-import cloudscraper
+from curl_cffi import requests
 import yaml
 
 BASE_URL = "https://www.procyclingstats.com"
@@ -163,10 +164,13 @@ def parse_ranking_page(html: str) -> list[dict]:
 def fetch_rankings() -> list[dict]:
     """Fetch all pages of PCS season individual ranking."""
     print("Fetching PCS season individual ranking...")
-    session = cloudscraper.create_scraper()
+    session = requests.Session()
 
     # First page (establishes session)
-    r = session.get(f"{BASE_URL}/rankings/me/season-individual")
+    r = session.get(
+        f"{BASE_URL}/rankings/me/season-individual",
+        impersonate="chrome124",
+    )
     all_riders = parse_ranking_page(r.text)
     print(f"  Page 1: {len(all_riders)} riders")
 
@@ -185,6 +189,7 @@ def fetch_rankings() -> list[dict]:
         r = session.get(
             f"{BASE_URL}/rankings.php",
             params={"p": "me", "s": "season-individual", "offset": offset},
+            impersonate="chrome124",
         )
         riders = parse_ranking_page(r.text)
         print(f"  Page {i}: {len(riders)} riders")
@@ -1296,6 +1301,10 @@ def main():
 
     # Step 1: Fetch rankings
     raw = fetch_rankings()
+    if not raw:
+        print("ERROR: PCS scraper returned zero riders. Cloudflare block likely.",
+              file=sys.stderr)
+        sys.exit(1)
 
     # Step 2: Build lookup
     ranking = build_ranking_lookup(raw, aliases)
