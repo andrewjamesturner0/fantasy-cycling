@@ -15,7 +15,7 @@ echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) Starting league update ==="
 git pull --ff-only origin main
 
 # Run the update
-python3 update_league.py
+./venv/bin/python3 update_league.py
 
 # If anything changed, commit and push
 if ! git diff --quiet -- docs/index.html league_table.csv league_detailed.csv ranking.csv history.json; then
