@@ -173,11 +173,6 @@ def fetch_rankings() -> list[dict]:
     )
     all_riders = parse_ranking_page(r.text)
     print(f"  Page 1: {len(all_riders)} riders")
-    if not all_riders:
-        # Diagnostic: dump response snippet to understand what we got
-        print(f"  Status: {r.status_code}")
-        print(f"  Content-Type: {r.headers.get('content-type', 'unknown')}")
-        print(f"  Body sample: {r.text[:500]}")
 
     # Discover page offsets from the offset <select>
     offset_select = re.search(
