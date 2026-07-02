@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from update_league import (
+    add_known_unranked_riders,
     build_ranking_lookup,
     compute_league_table,
     generate_html,
@@ -285,6 +286,24 @@ class TestAliases:
         lookup = build_ranking_lookup(raw, {"RIDER X Alt": "RIDER X"})
         assert "RIDER X" in lookup
         assert "RIDER X Alt" not in lookup
+
+    def test_known_unranked_drafted_rider_gets_zero_point_entry(self):
+        ranking = {}
+        teams = {"Alice": ["RIDER ZERO"], "Bob": ["RIDER OTHER"]}
+        add_known_unranked_riders(ranking, teams, ["RIDER ZERO"])
+        assert ranking["RIDER ZERO"] == {
+            "rank": None,
+            "prev_rank": None,
+            "team": "",
+            "points": 0,
+        }
+
+    def test_known_unranked_does_not_overwrite_ranked_rider(self):
+        ranking = {"RIDER ZERO": {"rank": 10, "prev_rank": 12, "team": "Team", "points": 50}}
+        teams = {"Alice": ["RIDER ZERO"]}
+        add_known_unranked_riders(ranking, teams, ["RIDER ZERO"])
+        assert ranking["RIDER ZERO"]["points"] == 50
+        assert ranking["RIDER ZERO"]["rank"] == 10
 
 
 # ---------------------------------------------------------------------------

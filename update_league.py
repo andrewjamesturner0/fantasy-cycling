@@ -214,6 +214,23 @@ def build_ranking_lookup(raw_rankings: list[dict], aliases: dict[str, str]) -> d
     return lookup
 
 
+def add_known_unranked_riders(
+    ranking: dict[str, dict],
+    active_teams: dict[str, list[str]],
+    known_unranked_riders: list[str],
+):
+    """Add drafted riders known to have valid PCS pages but no ranking row."""
+    drafted = {rider for riders in active_teams.values() for rider in riders}
+    for rider in known_unranked_riders:
+        if rider in drafted and rider not in ranking:
+            ranking[rider] = {
+                "rank": None,
+                "prev_rank": None,
+                "team": "",
+                "points": 0,
+            }
+
+
 # ---------------------------------------------------------------------------
 # League computation
 # ---------------------------------------------------------------------------
@@ -311,7 +328,11 @@ def write_ranking_csv(ranking: dict[str, dict], rider_to_manager: dict[str, str]
             "points": info["points"],
             "manager": rider_to_manager.get(name, ""),
         })
-    rows.sort(key=lambda x: x["rank"])
+    rows.sort(
+        key=lambda x: x["rank"]
+        if isinstance(x["rank"], int) and x["rank"] > 0
+        else 999999
+    )
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["rank", "prev_rank", "rider", "team", "points", "manager"])
         writer.writeheader()
@@ -391,7 +412,11 @@ def generate_html(
 """
 
         for r in manager_details[mgr]:
-            rank_display = f"#{r['rank']}" if r["rank"] != "—" else "—"
+            rank_display = (
+                f"#{r['rank']}"
+                if isinstance(r["rank"], int) and r["rank"] > 0
+                else "-"
+            )
             if has_costs:
                 if r["cost"] is not None and r["cost"] > 0:
                     cost_display = f"${r['cost']}"
@@ -1308,6 +1333,9 @@ def main():
 
     # Step 2: Build lookup
     ranking = build_ranking_lookup(raw, aliases)
+    add_known_unranked_riders(
+        ranking, active_teams, config.get("known_unranked_riders", [])
+    )
 
     # Handle snapshot mode
     if args.snapshot:
