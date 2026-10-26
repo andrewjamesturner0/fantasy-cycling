@@ -3,7 +3,7 @@
 """
 One-off script to backfill history.json from PCS rider results.
 
-Fetches each rider's 2026 race results from ProCyclingStats, then
+Fetches each rider's configured season race results from ProCyclingStats, then
 reconstructs weekly standings from the start of the season.
 
 Requirements (same as update_league.py plus one extra):
@@ -37,10 +37,6 @@ from procyclingstats import RiderResults
 # ---------------------------------------------------------------------------
 
 BASE_URL = "https://www.procyclingstats.com"
-SEASON = 2026
-# Generate a snapshot every Monday from early January
-SNAPSHOT_DAY = 0  # Monday = 0
-FIRST_SNAPSHOT = datetime(SEASON, 1, 13, tzinfo=timezone.utc)  # First Monday with possible results
 REQUEST_DELAY = 2.0  # seconds between PCS requests -- be polite
 
 # Riders whose PCS URL slug doesn't match the auto-generated one
@@ -116,7 +112,7 @@ def name_to_slug(name):
 # Fetch rider results
 # ---------------------------------------------------------------------------
 
-def fallback_parse_results(html):
+def fallback_parse_results(html, season):
     """Parse results directly from HTML when the PCS library can't handle the page.
 
     Looks for table rows containing dates (DD.MM) and PCS points.
@@ -134,7 +130,7 @@ def fallback_parse_results(html):
             # Match DD.MM format
             dm = re.match(r'^(\d{2})\.(\d{2})$', td_text)
             if dm:
-                date_str = f"{SEASON}-{dm.group(2)}-{dm.group(1)}"
+                date_str = f"{season}-{dm.group(2)}-{dm.group(1)}"
                 continue
             # Match YYYY-MM-DD format
             ymd = re.match(r'^(\d{4}-\d{2}-\d{2})$', td_text)
@@ -153,7 +149,7 @@ def fallback_parse_results(html):
         if name_match:
             stage_name = name_match.group(1).strip()
 
-        if date_str and points and date_str.startswith(str(SEASON)):
+        if date_str and points and date_str.startswith(str(season)):
             parsed.append({
                 "date": date_str,
                 "pcs_points": points,
@@ -162,8 +158,8 @@ def fallback_parse_results(html):
     return parsed
 
 
-def fetch_rider_results(session, rider_name, aliases, debug=False):
-    """Fetch a rider's 2026 results from PCS.
+def fetch_rider_results(session, rider_name, aliases, season, debug=False):
+    """Fetch a rider's results for the configured season from PCS.
 
     Returns list of {'date': 'YYYY-MM-DD', 'pcs_points': int, 'stage_name': str}
     """
@@ -172,7 +168,7 @@ def fetch_rider_results(session, rider_name, aliases, debug=False):
     url = f"{BASE_URL}/rider/{slug}/results"
 
     try:
-        r = session.get(url, timeout=30)
+        r = session.get(url, params={"xseason": season}, timeout=30)
         if r.status_code != 200:
             if debug:
                 print(f"\n    DEBUG: HTTP {r.status_code} for {url}")
@@ -193,7 +189,7 @@ def fetch_rider_results(session, rider_name, aliases, debug=False):
             for row in raw:
                 pts = row.get("pcs_points", 0)
                 date = row.get("date", "")
-                if pts and date and date.startswith(str(SEASON)):
+                if pts and date and date.startswith(str(season)):
                     parsed.append({
                         "date": date,
                         "pcs_points": int(pts),
@@ -205,7 +201,7 @@ def fetch_rider_results(session, rider_name, aliases, debug=False):
 
         # If the library failed or returned nothing, try fallback regex parsing
         if parsed is None:
-            parsed = fallback_parse_results(r.text)
+            parsed = fallback_parse_results(r.text, season)
             if debug:
                 print(f"    DEBUG: Fallback parsed {len(parsed)} results")
 
@@ -220,13 +216,15 @@ def fetch_rider_results(session, rider_name, aliases, debug=False):
 # Build timeline
 # ---------------------------------------------------------------------------
 
-def build_weekly_history(teams, rider_results):
+def build_weekly_history(teams, rider_results, season):
     """Build weekly history snapshots from rider race results."""
 
-    # Determine snapshot dates: every Monday from FIRST_SNAPSHOT to now
-    now = datetime.now(timezone.utc)
+    # Use the first Monday of the configured season, ending at today or year end.
+    now = min(datetime.now(timezone.utc), datetime(season, 12, 31, tzinfo=timezone.utc))
+    first_day = datetime(season, 1, 1, tzinfo=timezone.utc)
+    first_monday = first_day + timedelta(days=(-first_day.weekday()) % 7)
     snapshot_dates = []
-    d = FIRST_SNAPSHOT
+    d = first_monday
     while d <= now:
         snapshot_dates.append(d)
         d += timedelta(days=7)
@@ -234,6 +232,9 @@ def build_weekly_history(teams, rider_results):
     # Also add today if it's not a Monday (to capture the latest state)
     if snapshot_dates and snapshot_dates[-1].date() != now.date():
         snapshot_dates.append(now)
+
+    if not snapshot_dates:
+        return []
 
     print(f"\nGenerating {len(snapshot_dates)} weekly snapshots "
           f"({snapshot_dates[0].strftime('%Y-%m-%d')} → {snapshot_dates[-1].strftime('%Y-%m-%d')})")
@@ -296,6 +297,10 @@ def main():
 
     # Load config
     config = load_config(config_path)
+    season = int(config["season"])
+    if config.get("status") == "draft" or season > datetime.now(timezone.utc).year:
+        print(f"{season} draft pending. History backfill is paused.")
+        return
     aliases = config.get("aliases", {})
     teams = config["first_half"]  # Backfill uses first-half rosters
 
@@ -307,7 +312,7 @@ def main():
                 all_riders.append(rider)
 
     print(f"League has {len(teams)} teams, {len(all_riders)} unique riders")
-    print(f"Fetching 2026 results from ProCyclingStats...\n")
+    print(f"Fetching {season} results from ProCyclingStats...\n")
 
     # Fetch results for each rider
     session = cloudscraper.create_scraper()
@@ -318,7 +323,7 @@ def main():
         slug = SLUG_OVERRIDES.get(rider, name_to_slug(aliases.get(rider, rider)))
         print(f"  [{i}/{len(all_riders)}] {rider} ({slug})...", end=" ", flush=True)
 
-        results = fetch_rider_results(session, rider, aliases)
+        results = fetch_rider_results(session, rider, aliases, season)
 
         if results:
             total_pts = sum(r["pcs_points"] for r in results)
@@ -337,7 +342,7 @@ def main():
         print(f"No results for: {', '.join(errors)}")
 
     # Build weekly history
-    history = build_weekly_history(teams, rider_results)
+    history = build_weekly_history(teams, rider_results, season)
 
     if not history:
         print("No history generated (all zeros). Something may be wrong.")

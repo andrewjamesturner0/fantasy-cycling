@@ -538,3 +538,141 @@ class TestBankedSegment:
         })
         html = _html(tmp_path, history=[snap])
         assert "Banked (1st half)" not in html
+
+
+class TestSeasonRollover:
+    def test_draft_update_keeps_history_empty_and_never_fetches(self, tmp_path, monkeypatch):
+        import update_league
+
+        config = {
+            'season': 2027, 'status': 'draft', 'transfers_done': False,
+            'first_half': {'Alice': [], 'Bob': ['RIDER A']},
+            'second_half': {}, 'auction_costs': {},
+        }
+        (tmp_path / 'league_config.yaml').write_text(yaml.safe_dump(config))
+        (tmp_path / 'history.json').write_text('[]\n')
+        (tmp_path / 'docs/archive/2026').mkdir(parents=True)
+        (tmp_path / 'docs/archive/2026/league_table.csv').write_text(
+            'rank,manager,points,banked\n1,Mike,9364,0\n2,Dave,8512,0\n'
+        )
+        (tmp_path / 'docs/archive/2026/manifest.json').write_text(
+            '{"season": 2026, "last_results_date": "2026-10-26"}'
+        )
+        monkeypatch.setattr(update_league, '__file__', str(tmp_path / 'update_league.py'))
+        monkeypatch.setattr('sys.argv', ['update_league.py'])
+
+        def unexpected_fetch(*args, **kwargs):
+            pytest.fail('Draft mode must not fetch rankings')
+
+        monkeypatch.setattr(update_league, 'fetch_rankings', unexpected_fetch)
+        update_league.main()
+        page = (tmp_path / 'docs/draft.html').read_text()
+        assert '2027 Fantasy Cycling League' in page
+        assert 'Draft and team selection' in page
+        assert '0 / 8 riders selected' in page
+        assert '1 / 8 riders selected' in page
+        assert 'archive/2026/' in page
+        assert 'Season Progress' not in page
+        holding_page = (tmp_path / 'docs/index.html').read_text()
+        assert '2026 Fantasy Cycling - Final Results' in holding_page
+        assert 'Final standings - 26 October 2026' in holding_page
+        assert 'Mike' in holding_page and '9,364' in holding_page
+        assert 'Draft and team selection' not in holding_page
+        assert '2027' not in holding_page
+        assert (tmp_path / 'history.json').read_text() == '[]\n'
+        for name in ['league_table.csv', 'league_detailed.csv', 'ranking.csv']:
+            with (tmp_path / name).open() as f:
+                assert list(csv.DictReader(f)) == []
+        update_league.main()
+        assert (tmp_path / 'docs/draft.html').read_text() == page
+        assert (tmp_path / 'docs/index.html').read_text() == holding_page
+        assert (tmp_path / 'history.json').read_text() == '[]\n'
+
+    def test_draft_rejects_midseason_snapshot(self, tmp_path, monkeypatch):
+        import update_league
+
+        config = {
+            'season': 2027, 'status': 'draft', 'transfers_done': False,
+            'first_half': {'Alice': []},
+        }
+        (tmp_path / 'league_config.yaml').write_text(yaml.safe_dump(config))
+        monkeypatch.setattr(update_league, '__file__', str(tmp_path / 'update_league.py'))
+        monkeypatch.setattr('sys.argv', ['update_league.py', '--snapshot'])
+        with pytest.raises(SystemExit) as error:
+            update_league.main()
+        assert error.value.code == 2
+        assert not (tmp_path / 'mid_season_snapshot.csv').exists()
+
+    def test_future_rankings_are_rejected_before_network_access(self, monkeypatch):
+        import update_league
+
+        def unexpected_session():
+            pytest.fail('Future seasons must not contact PCS')
+
+        monkeypatch.setattr(update_league.requests, 'Session', unexpected_session)
+        year = update_league.datetime.now(update_league.timezone.utc).year + 1
+        with pytest.raises(ValueError, match='has not started'):
+            update_league.fetch_rankings(year)
+
+    def test_ranking_year_is_preserved_on_every_page(self, monkeypatch):
+        import update_league
+        from types import SimpleNamespace
+
+        calls = []
+
+        class Session:
+            def get(self, url, **kwargs):
+                calls.append(kwargs['params'])
+                return SimpleNamespace(text='<select name="offset"><option value="0">1</option><option value="100">2</option></select>')
+
+        monkeypatch.setattr(update_league.requests, 'Session', Session)
+        monkeypatch.setattr(update_league, 'parse_ranking_page', lambda _: [{'points': 100}])
+        assert len(update_league.fetch_rankings(2025)) == 2
+        assert [call['date'] for call in calls] == ['2025-12-31', '2025-12-31']
+        assert calls[1]['offset'] == '100'
+
+    def test_active_page_uses_configured_season(self, tmp_path):
+        path = tmp_path / 'index.html'
+        generate_html([], {}, {}, str(path), season=2028)
+        page = path.read_text()
+        assert '<title>2028 Fantasy Cycling League</title>' in page
+        assert '<h1>2028 Fantasy Cycling League</h1>' in page
+
+
+class TestBackfillSeason:
+    @pytest.fixture
+    def backfill(self):
+        pytest.importorskip('cloudscraper')
+        pytest.importorskip('procyclingstats')
+        import backfill_history
+        return backfill_history
+
+    def test_fallback_dates_use_the_requested_season(self, backfill):
+        results = backfill.fallback_parse_results(
+            '<tr><td>15.02</td><td><a href="race">Race</a></td><td>100</td></tr>', 2027
+        )
+        assert results == [{'date': '2027-02-15', 'pcs_points': 100, 'stage_name': 'Race'}]
+
+    def test_history_stays_within_the_requested_season(self, backfill):
+        history = backfill.build_weekly_history(
+            {'Alice': ['RIDER A']},
+            {'RIDER A': [{'date': '2025-01-01', 'pcs_points': 100}]},
+            2025,
+        )
+        assert history[0]['date'] == '2025-01-06'
+        assert history[-1]['date'] == '2025-12-31'
+        assert all(entry['teams']['Alice']['total'] == 100 for entry in history)
+
+    def test_draft_backfill_never_fetches_or_writes(self, backfill, tmp_path, monkeypatch):
+        config = {'season': 2027, 'status': 'draft', 'first_half': {'Alice': []}}
+        (tmp_path / 'league_config.yaml').write_text(yaml.safe_dump(config))
+        (tmp_path / 'history.json').write_text('[]\n')
+        monkeypatch.setattr(backfill, '__file__', str(tmp_path / 'backfill_history.py'))
+        monkeypatch.setattr('sys.argv', ['backfill_history.py'])
+
+        def unexpected_session():
+            pytest.fail('Draft backfill must not contact PCS')
+
+        monkeypatch.setattr(backfill.cloudscraper, 'create_scraper', unexpected_session)
+        backfill.main()
+        assert (tmp_path / 'history.json').read_text() == '[]\n'

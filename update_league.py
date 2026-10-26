@@ -161,14 +161,19 @@ def parse_ranking_page(html: str) -> list[dict]:
     return riders
 
 
-def fetch_rankings() -> list[dict]:
+def fetch_rankings(season: int) -> list[dict]:
     """Fetch all pages of PCS season individual ranking."""
     print("Fetching PCS season individual ranking...")
+    today = datetime.now(timezone.utc).date()
+    if season > today.year:
+        raise ValueError(f"The {season} season has not started yet")
+    ranking_date = min(today.isoformat(), f"{season}-12-31")
     session = requests.Session()
 
     # First page (establishes session)
     r = session.get(
         f"{BASE_URL}/rankings/me/season-individual",
+        params={"date": ranking_date},
         impersonate="chrome124",
     )
     all_riders = parse_ranking_page(r.text)
@@ -188,7 +193,7 @@ def fetch_rankings() -> list[dict]:
     for i, offset in enumerate(offsets[1:], start=2):
         r = session.get(
             f"{BASE_URL}/rankings.php",
-            params={"p": "me", "s": "season-individual", "offset": offset},
+            params={"p": "me", "s": "season-individual", "date": ranking_date, "offset": offset},
             impersonate="chrome124",
         )
         riders = parse_ranking_page(r.text)
@@ -349,6 +354,9 @@ def generate_html(
     snapshot: dict[str, int] | None = None,
     history: list[dict] | None = None,
     auction_costs: dict[str, int] | None = None,
+    season: int = 2027,
+    status: str = "active",
+    archive_url: str | None = None,
 ):
     """Generate a self-contained HTML league table."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -584,12 +592,81 @@ def generate_html(
     manager_order = [e["manager"] for e in standings]
     manager_order_json = json.dumps(manager_order, ensure_ascii=False)
 
-    html = f"""<!DOCTYPE html>
+    archive_link = (
+        f'<p><a href="{html.escape(archive_url, quote=True)}">2026 season archive</a></p>'
+        if archive_url else ""
+    )
+    if status == "draft":
+        manager_rows = "".join(
+            f"<tr><td>{html.escape(manager)}</td><td>{len(riders)} / 8 riders selected</td></tr>"
+            for manager, riders in active_teams.items()
+        )
+        season_content = f"""
+  <h2>Draft and team selection</h2>
+  <p>The {season} season is ready for a new draft. Scores and history start fresh.</p>
+  <table class="standings">
+    <thead><tr><th>Manager</th><th>Team selection</th></tr></thead>
+    <tbody>{manager_rows}</tbody>
+  </table>
+"""
+    else:
+        season_content = f"""
+  <table class="standings">
+    <thead>
+      <tr><th>Rank</th><th>Manager</th><th>Points</th></tr>
+    </thead>
+    <tbody>
+{standings_rows}    </tbody>
+  </table>
+
+  <h2>Rider Breakdown</h2>
+{detail_sections}
+  <div class="charts-section">
+    <h2>Season Progress</h2>
+
+    <div class="chart-container">
+      <h3>Team Points Over Time</h3>
+      <div class="chart-zoom" id="zoomPoints">
+        <button data-range="month" class="active">Last month</button>
+        <button data-range="all">Full season</button>
+      </div>
+      <canvas id="pointsOverTime"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <h3>League Position Over Time</h3>
+      <div class="chart-zoom" id="zoomPosition">
+        <button data-range="month" class="active">Last month</button>
+        <button data-range="all">Full season</button>
+      </div>
+      <canvas id="positionOverTime"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <h3>Points Gained Per Update</h3>
+      <canvas id="pointsGained"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <h3>Rider Contributions</h3>
+      <canvas id="riderContribution"></canvas>
+    </div>
+  </div>
+{hot_riders_html}
+{best_value_html}
+"""
+    update_note = (
+        "Waiting for the draft and team selection."
+        if status == "draft"
+        else f"Updated every Monday &amp; Thursday<br>Last updated: {now}"
+    )
+
+    page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>2026 Fantasy Cycling League</title>
+<title>{season} Fantasy Cycling League</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -851,54 +928,13 @@ def generate_html(
 <body>
 <div class="container">
   <header>
-    <h1>2026 Fantasy Cycling League</h1>
+    <h1>{season} Fantasy Cycling League</h1>
     <p class="subtitle">Points sourced from ProCyclingStats season ranking</p>
+    {archive_link}
   </header>
 
-  <table class="standings">
-    <thead>
-      <tr><th>Rank</th><th>Manager</th><th>Points</th></tr>
-    </thead>
-    <tbody>
-{standings_rows}    </tbody>
-  </table>
-
-  <h2>Rider Breakdown</h2>
-{detail_sections}
-  <div class="charts-section">
-    <h2>Season Progress</h2>
-
-    <div class="chart-container">
-      <h3>Team Points Over Time</h3>
-      <div class="chart-zoom" id="zoomPoints">
-        <button data-range="month" class="active">Last month</button>
-        <button data-range="all">Full season</button>
-      </div>
-      <canvas id="pointsOverTime"></canvas>
-    </div>
-
-    <div class="chart-container">
-      <h3>League Position Over Time</h3>
-      <div class="chart-zoom" id="zoomPosition">
-        <button data-range="month" class="active">Last month</button>
-        <button data-range="all">Full season</button>
-      </div>
-      <canvas id="positionOverTime"></canvas>
-    </div>
-
-    <div class="chart-container">
-      <h3>Points Gained Per Update</h3>
-      <canvas id="pointsGained"></canvas>
-    </div>
-
-    <div class="chart-container">
-      <h3>Rider Contributions</h3>
-      <canvas id="riderContribution"></canvas>
-    </div>
-  </div>
-{hot_riders_html}
-{best_value_html}
-  <p class="updated">Updated every Monday &amp; Thursday<br>Last updated: {now}</p>
+{season_content}
+  <p class="updated">{update_note}</p>
 </div>
 
 <script>
@@ -1220,7 +1256,90 @@ def generate_html(
 
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
-        f.write(html)
+        f.write(page_html)
+    print(f"Written: {path}")
+
+
+# ---------------------------------------------------------------------------
+# Holding page
+# ---------------------------------------------------------------------------
+
+def generate_holding_page(archive_dir: str, path: str):
+    """Show frozen results while the next season's draft is pending."""
+    with open(os.path.join(archive_dir, "league_table.csv"), newline="") as f:
+        standings = list(csv.DictReader(f))
+    with open(os.path.join(archive_dir, "manifest.json")) as f:
+        archive = json.load(f)
+    season = int(archive["season"])
+    results_date = datetime.strptime(archive["last_results_date"], "%Y-%m-%d").strftime("%d %B %Y")
+    rows = "".join(
+        f'<tr><td>{int(entry["rank"])}</td><th scope="row">{html.escape(entry["manager"])}</th>'
+        f'<td>{int(entry["points"]):,}</td></tr>'
+        for entry in standings
+    )
+    page = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{season} Fantasy Cycling - Final Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Follow the existing league page: Hanken Grotesk, white, charcoal and green. */
+  :root {{
+    --bg: #ffffff; --text: #1a1a1a; --muted: #6b6b6b;
+    --border: #e5e5e5; --accent: #00a67e; --link: #007a5c;
+    --winner: rgba(0, 166, 126, 0.06);
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; padding: 64px 24px; background: var(--bg); color: var(--text);
+    font: 400 16px/1.5 'Hanken Grotesk', sans-serif; }}
+  main {{ max-width: 720px; margin: 0 auto; }}
+  h1 {{ margin: 0 0 8px; font-size: clamp(28px, 5vw, 40px); line-height: 1.15;
+    font-weight: 800; letter-spacing: -0.03em; }}
+  p {{ margin: 0; color: var(--muted); }}
+  table {{ width: 100%; margin: 32px 0 24px; border-collapse: collapse;
+    font-variant-numeric: tabular-nums; }}
+  th, td {{ padding: 16px 12px; border-bottom: 1px solid var(--border); text-align: left; }}
+  thead th {{ font-weight: 500; color: var(--muted); }}
+  tbody th {{ font-weight: 600; }}
+  th:first-child, td:first-child {{ width: 64px; }}
+  th:last-child, td:last-child {{ text-align: right; }}
+  tbody tr:first-child {{ background: var(--winner); }}
+  tbody tr:first-child th {{ font-weight: 800; }}
+  a {{ color: var(--link); text-underline-offset: 4px; transition: color 0.2s ease; }}
+  a:hover {{ color: var(--text); }}
+  a:active {{ color: var(--muted); }}
+  a:focus-visible {{ outline: 2px solid var(--link); outline-offset: 4px; }}
+  footer {{ margin-top: 32px; }}
+  @media (max-width: 600px) {{
+    body {{ padding: 32px 16px; }}
+    th, td {{ padding: 12px 8px; }}
+    th:first-child, td:first-child {{ width: 48px; }}
+  }}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{season} Fantasy Cycling</h1>
+    <p>Final standings - {results_date}</p>
+  </header>
+  <table aria-label="{season} final league standings">
+    <thead><tr><th scope="col">Rank</th><th scope="col">Manager</th><th scope="col">Points</th></tr></thead>
+    <tbody>{rows}</tbody>
+  </table>
+  <a href="archive/{season}/">Full {season} results and season history</a>
+  <footer><p>Points sourced from ProCyclingStats season ranking.</p></footer>
+</main>
+</body>
+</html>
+"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write(page)
     print(f"Written: {path}")
 
 
@@ -1324,8 +1443,35 @@ def main():
     rider_to_manager = build_rider_to_manager(active_teams)
     auction_costs = config.get("auction_costs", {})
 
+    season = int(config["season"])
+    status = config.get("status", "active")
+    if status not in {"draft", "active"}:
+        parser.error("status must be draft or active")
+
+    if status == "draft":
+        if args.snapshot:
+            parser.error("Cannot take a mid-season snapshot while the draft is pending")
+        write_league_csv([], os.path.join(base_dir, "league_table.csv"))
+        write_detailed_csv({}, {}, os.path.join(base_dir, "league_detailed.csv"))
+        write_ranking_csv({}, {}, os.path.join(base_dir, "ranking.csv"))
+        generate_html(
+            [], active_teams, {}, os.path.join(base_dir, "docs", "draft.html"),
+            season=season, status=status, archive_url="archive/2026/",
+        )
+        generate_holding_page(
+            os.path.join(base_dir, "docs", "archive", "2026"),
+            os.path.join(base_dir, "docs", "index.html"),
+        )
+        print(f"{season} draft pending. Rankings and history updates are paused.")
+        return
+
+    if season > datetime.now(timezone.utc).year:
+        parser.error(f"The {season} season has not started yet; keep status: draft")
+    if not any(active_teams.values()):
+        parser.error("Select teams before setting status: active")
+
     # Step 1: Fetch rankings
-    raw = fetch_rankings()
+    raw = fetch_rankings(season)
     if not raw:
         print("ERROR: PCS scraper returned zero riders. Cloudflare block likely.",
               file=sys.stderr)
@@ -1388,6 +1534,8 @@ def main():
         transfers_done, snapshot,
         history=history,
         auction_costs=auction_costs,
+        season=season,
+        archive_url="archive/2026/",
     )
 
     print("\nDone!")

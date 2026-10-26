@@ -5,3 +5,6 @@ __pycache__/
 .DS_Store
 .venv/
 venv/
+
+# Keep the original draft workbook with its archived season.
+!docs/archive/**/*.xlsx

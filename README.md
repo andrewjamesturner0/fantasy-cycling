@@ -1,6 +1,35 @@
-# 2026 Fantasy Cycling League
+# Fantasy Cycling League
 
 Automated fantasy cycling league table, powered by [ProCyclingStats](https://www.procyclingstats.com/) season rankings.
+
+## 2027 draft
+
+The active season is 2027. All teams are empty and auction costs, scores,
+rankings and history have been cleared. Manager names and name matching aliases
+are retained. GitHub Pages shows a holding page with the final 2026 standings.
+With `status: draft`, the updater keeps this holding page and renders team
+selection at `docs/draft.html`, without fetching PCS rankings or adding history.
+
+1. Edit `first_half` in `league_config.yaml` to select each manager's 8 riders.
+2. Enter the new draft prices in `auction_costs` (the budget is $1,000 per team).
+3. Run `python3 update_league.py` to refresh `docs/draft.html`.
+4. Once teams are complete and the 2027 season has begun, set `status: active`
+   and run the updater to start scoring. Keep `transfers_done: false` until the
+   mid-season transfer window.
+
+The updater uses `season` to select the PCS ranking year. It rejects a future
+season in active mode. The history backfill script also reads the season from
+configuration and pauses during the draft.
+
+## 2026 archive
+
+The [2026 league page](docs/archive/2026/index.html) and all season data are in
+`docs/archive/2026/`: standings, rider scores, full PCS rankings, all 65 history
+snapshots, rosters, auction prices, the original spreadsheet and the old README.
+The archive preserves the remote's results through 26 October 2026, from commit
+`7859ee6`. `manifest.json` records checksums of the archived files. These files
+are frozen; normal updates write only to the active season files at the root
+and `docs/index.html`.
 
 ## Overview
 
@@ -13,6 +42,8 @@ The update script fetches the latest rankings, computes standings, tracks histor
 All league data lives in `league_config.yaml`:
 
 ```yaml
+season: 2027
+status: draft  # switch to active after team selection, once the season begins
 transfers_done: false
 
 first_half:
@@ -129,7 +160,13 @@ The league table is published automatically:
 
 ## GitHub Actions
 
-The workflow runs every Monday and Thursday at 8am UTC (and can be triggered manually). It fetches the latest PCS rankings, regenerates all outputs (including appending to `history.json`), and commits any changes.
+The league update workflow has been removed and GitHub Actions is disabled for
+this repository after deploying the 2026 holding page. There are no remote league
+updates or manual update triggers. To publish future changes, first re-enable
+GitHub Actions in repository settings so GitHub Pages can build and deploy them.
+
+`run_update.sh` remains available for local updates. In draft mode, scoring and
+history updates remain paused and the homepage keeps the archived 2026 results.
 
 ## Name Matching
 

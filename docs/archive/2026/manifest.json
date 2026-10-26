@@ -1,0 +1,15 @@
+{
+  "season": 2026,
+  "source_commit": "7859ee6",
+  "last_results_date": "2026-10-26",
+  "sha256": {
+    "ranking.csv": "46dc155c17649283503e47d66f5078921ec56e2dc3b50a5e6594b4af1954b884",
+    "league_detailed.csv": "3fc718d2514c8b824d990fd352f63b25b0aaeaf94a0a27cd76e5ed0d4442d925",
+    "league_table.csv": "cf85558b3d07eed093b44b859c37e5ff43f37e927d3da9e022a6f4a3c82e4665",
+    "index.html": "851ea44fb36bebfb3babf88120d3cc29c037bd9f339995231f3a4447c624ab75",
+    "2026 Fantasy Cycling.xlsx": "b64730d7aa787348f324b66e417ed2aeb25b5c67d278abe70ed7e05c713f36cd",
+    "README.md": "6455080838d3624169c90e38e6c6e68a14837887f939f00bf4c2e8abbf6b5120",
+    "league_config.yaml": "8f40f8d0cd35abbf7008acebae113d9b0f3d05507dd839497d9328f585e4cc6e",
+    "history.json": "0918b0867798bf4f82e45c9dfb6ed79c8ee057ac9fe3e37851443f135f2c04e6"
+  }
+}
